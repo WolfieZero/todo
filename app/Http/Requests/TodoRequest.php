@@ -25,7 +25,6 @@ class TodoRequest extends Request
     {
         return [
             'task' => 'required',
-            'user_id' => 'required|integer'
         ];
     }
     /**
@@ -36,9 +35,7 @@ class TodoRequest extends Request
     public function messages()
     {
         return [
-            'name.required'    => '`task` is required.',
-            'user_id.required' => '`user_id` is required.',
-            'user_id.integer'  => '`user_id` needs to be a interger.',
+            'task.required' => '`task` is required.',
         ];
     }
 }

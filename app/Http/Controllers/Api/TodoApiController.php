@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use DB;
-use App\Todo;
+use JWTAuth;
+ use App\Todo;
 use Illuminate\Http\Request;
 use Dingo\Api\Routing\Helpers;
 use App\Http\Requests\TodoRequest;
@@ -14,27 +15,55 @@ class TodoApiController extends Controller
     use Helpers;
 
     /**
-     * Fields and their default values
+     * Fields and their default values.
      *
      * @var  array
      */
     protected $fields = [
         'task'     => null,
-        'user_id'  => null,
         'complete' => '',
         'order'    => '0'
     ];
 
     /**
-     * Return the collection.
+     * Todo model for user.
+     *
+     * @var  App\Todo
+     */
+    private $todo;
+
+    /**
+     * User model for authroized user.
+     *
+     * @var  App\User
+     */
+    private $user;
+
+    /**
+     * Creates todo model for user.
+     */
+    public function __construct(Request $request)
+    {
+        if ($request->token) {
+            $this->user = JWTAuth::parseToken()->authenticate();
+            $this->todo = $this->user->todos();
+        }
+    }
+
+    /**
+     * Return the collection in order of "order".
      *
      * @return  array
      */
     public function collection()
     {
-        $user_id = 1;
-        $collection = Todo::where('user_id', $user_id)->orderBy('order')->get();
-        return $collection->toArray();
+        $collection = $this->todo->orderBy('order')->get();
+
+        if ($collection) {
+            return $this->response->array($collection->toArray());
+        }
+
+        return $this->response->error('error', 500);
     }
 
     /**
@@ -44,9 +73,13 @@ class TodoApiController extends Controller
      */
     public function single($id)
     {
-        $user_id = 1;
-        $single = Todo::findOrFail($id);
-        return $single->toArray();
+        $single = $this->todo->find($id);
+
+        if ($single) {
+            return $this->response->array($single->toArray());
+        }
+
+        return $this->response->error('cannot_find_todo', 500);
     }
 
     /**
@@ -57,17 +90,22 @@ class TodoApiController extends Controller
      */
     public function store(TodoRequest $request)
     {
-        $createTodo = [];
+        $create = [];
 
         // Update the model values
         foreach ($this->fields as $key => $val) {
             if ($request->{$key}) {
-                $createTodo[$key] = $request->{$key};
+                $create[$key] = $request->{$key};
             }
         }
 
-        $todo = Todo::create($createTodo);
-        return $todo->toArray();
+        $created = $this->todo->create($create);
+
+        if ($created) {
+            return $this->response->array($created->toArray())->setStatusCode(201);
+        }
+
+        return $this->response->error('cannot_create_todo', 500);
     }
 
     /**
@@ -79,22 +117,30 @@ class TodoApiController extends Controller
      */
     public function update(TodoRequest $request, $id)
     {
-        $todo = Todo::findOrFail($id);
+        $todo = $this->todo->find($id);
 
-        // Update the model values
+        if ($todo === null) {
+            return $this->response->error('cannot_find_todo', 500);
+        }
+
         foreach ($this->fields as $key => $val) {
             if ($request->{$key}) {
                 $todo->{$key} = $request->{$key};
             }
         }
 
-        // Issue with 0 fix
+        // Issue "zero" fix
         if ($request->complete === '0') {
             $todo->complete = 0;
         }
 
-        $todo->save();
-        return $todo->toArray();
+        $updated = $todo->save();
+
+        if ($updated) {
+            return $this->response->array($todo->toArray())->setStatusCode(201);
+        }
+
+        return $this->response->error('cannot_update_todo', 500);
     }
 
     /**
@@ -106,23 +152,28 @@ class TodoApiController extends Controller
     {
         $order = json_decode($request->list);
         $todoTable = with(new Todo)->getTable();
+        $sqlCases = '';
+
+        foreach ($order as $item) {
+            $sqlCases .= 'WHEN `id` = ' . (int)$item->id .' THEN ' . (int)$item->order . ' ';
+        }
 
         $sql = '
             UPDATE ' . $todoTable .'
+
             SET `order` = CASE
+                ' . $sqlCases . '
+                WHEN `id` THEN `order`
+            END
+
+            WHERE user_id = ' . $this->user->id .'
         ';
 
-        foreach ($order as $item) {
-            $sql .= 'WHEN `id` = ' . (int)$item->id .' THEN ' . (int)$item->order . ' ';
-        }
-
-        $sql .= 'WHEN `id` THEN `order` END';
-
         if (DB::statement($sql)) {
-            return [ 'success' => true ];
+            return $this->response->noContent();
         };
 
-        return [ 'error' => 'reorder failed' ];
+        return $this->response->error('cannot_reorder', 500);
     }
 
     /**
@@ -133,13 +184,17 @@ class TodoApiController extends Controller
      */
     public function destroy($id)
     {
-        $todo = Todo::findOrFail($id);
+        $todo = $this->todo->find($id);
 
-        if ($todo->delete()) {
-            return [ 'success' => true ];
+        if (! $todo) {
+            return $this->response->error('cannot_find_todo', 500);
         }
 
-        return [ 'error' => 'delete failed' ];
+        if ($todo->delete()) {
+            return $this->response->noContent();
+        }
+
+        return $this->response->error('cannot_delete_todo', 500);
     }
 
 }

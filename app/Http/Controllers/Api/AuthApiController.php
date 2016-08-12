@@ -7,23 +7,24 @@ use JWTAuth;
 use App\User;
 use Validator;
 use Illuminate\Http\Request;
-use Illuminate\Mail\Message;
 use Dingo\Api\Routing\Helpers;
 use App\Http\Requests\SignupRequest;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Password;
 use Tymon\JWTAuth\Exceptions\JWTException;
-use Dingo\Api\Exception\ValidationHttpException;
 
-class AuthController extends Controller
+class AuthApiController extends Controller
 {
+    use Helpers;
 
-    public function test()
+    public function check()
     {
         $user = JWTAuth::parseToken()->authenticate();
 
-        $data = $user->todos()->get()->toArray();
-        return response()->json($data);
+        if ($user->id > 0) {
+            return $this->response->array('true');
+        }
+
+        return $this->response->error('error', 500);
     }
 
     /**
