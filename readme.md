@@ -5,7 +5,7 @@ Simple todo app API. What more do you need to know?
 
 ## Apps that use this
 
-- [AngularJS](http://todo.angularjs.boomchinchilla.com/) ([source](https://github.com/WolfieZero/todo-angularjs)])
+- [AngularJS](http://todo.angularjs.boomchinchilla.com/) ([source](https://github.com/WolfieZero/todo-angularjs))
 
 
 ## Uses
